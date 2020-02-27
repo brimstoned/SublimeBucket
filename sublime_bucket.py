@@ -61,7 +61,7 @@ class CommandBase():
             if first_line == last_line:
                 ranges.append(str(first_line))
             else:
-                ranges.append('%d:%d' % (first_line, last_line))
+                ranges.append('%d-%d' % (first_line, last_line))
 
         return ranges
 
@@ -88,13 +88,13 @@ class OpenInBitbucketCommand(CommandBase, sublime_plugin.TextCommand):
 
         try:
             remote = backend.find_bitbucket_remote()
-            url = '%(host)s/%(repo)s/src/%(branch)s/%(path)s#%(hash)s' % {
+            url = '%(host)s/projects/%(project)s/repos/%(repo)s/browse/%(path)s?#%(hash)s' % {
                 'host': 'https://' + remote.host,
+                'project': remote.project,
                 'repo': remote.repo,
-                'branch': backend.find_current_revision(),
+                'rev': backend.find_current_revision(),
                 'path': self.get_file_path(),
-                'hash': '%s-%s' % (os.path.basename(self.view.file_name()),
-                                   ','.join(self.get_line_ranges()))
+                'hash': '%s' % (','.join(self.get_line_ranges()))
             }
             webbrowser.open(url)
         except SublimeBucketError as e:
@@ -197,6 +197,8 @@ class Remote():
         self.name = re.split(r'\s+', remote_match.string, maxsplit=1)[0]
 
         self.host = remote_match.group('host')
+        self.port = remote_match.group('port')
+        self.project = remote_match.group('project')
         self.repo = re.sub(r'\.git$', '', remote_match.group('repo'))
 
 
@@ -215,8 +217,10 @@ class BackendBase():
         remotes = self.get_remote_list()
 
         for host in self.bitbucket_hosts:
-            bitbucket_pattern = (r'(?P<host>%s)[:/]'
-                                 r'(?P<repo>[\w\.\-]+/[\w\.\-]+)') % host
+            bitbucket_pattern = (r'(?P<host>%s)[:]'
+                                 r'(?P<port>[\d]{0,})[/]'
+                                 r'(?P<project>[\w\.\-]+)[/]'
+                                 r'(?P<repo>[\w\.\-]+)') % host
             for remote in remotes:
                 remote_match = re.search(bitbucket_pattern, remote)
                 if remote_match:
